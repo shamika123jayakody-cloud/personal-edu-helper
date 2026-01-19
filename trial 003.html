@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Edu Helper</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { --primary: #1a73e8; --secondary: #34a853; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: white; width: 90%; max-width: 600px; padding: 25px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); text-align: center; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .hidden { display: none; }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .sub-btn { background: #5f6368; flex: 1; transition: 0.3s; }
+        canvas { margin-top: 20px; max-height: 300px; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="login-box">
+    <h2>Personal Edu Helper</h2>
+    <p>ඇතුළු වීමට නම සහ මුරපදය ලබා දෙන්න</p>
+    <input type="text" id="username" placeholder="පරිශීලක නම (Username)">
+    <input type="password" id="password" placeholder="මුරපදය (Password)">
+    <button onclick="login()">Login</button>
+</div>
+
+<div class="container hidden" id="dashboard">
+    <h3>ආයුබෝවන් <span id="user-display"></span>!</h3>
+    
+    <div style="background: #eef; padding: 15px; border-radius: 10px;">
+        <h4>ලකුණු ඇතුළත් කරන්න</h4>
+        <select id="subject-select">
+            <option value="maths">Combined Maths</option>
+            <option value="physics">Physics</option>
+            <option value="chemistry">Chemistry</option>
+        </select>
+        <input type="number" id="paper-no" placeholder="පේපර් අංකය">
+        <input type="number" id="marks" placeholder="ලකුණු">
+        <button onclick="saveData()" style="background: var(--secondary);">Save Data</button>
+    </div>
+
+    <div class="btn-group">
+        <button id="btn-maths" class="sub-btn" onclick="showChart('maths')">Maths</button>
+        <button id="btn-physics" class="sub-btn" onclick="showChart('physics')">Physics</button>
+        <button id="btn-chemistry" class="sub-btn" onclick="showChart('chemistry')">Chemistry</button>
+    </div>
+
+    <h4 id="chart-title">ප්‍රගතිය</h4>
+    <canvas id="progressChart"></canvas>
+    
+    <button onclick="logout()" style="background: #d93025; margin-top: 30px;">Logout</button>
+</div>
+
+<script>
+    // Firebase Setup
+    const firebaseConfig = {
+        apiKey: "AIzaSyDPmV1qWxd5oJLpcmcnKzQ4XZ9Yq4Iz8xg",
+        authDomain: "personal-edu-helper.firebaseapp.com",
+        databaseURL: "https://personal-edu-helper-default-rtdb.firebaseio.com",
+        projectId: "personal-edu-helper",
+        storageBucket: "personal-edu-helper.firebasestorage.app",
+        messagingSenderId: "906892897172",
+        appId: "1:906892897172:web:804b82174a77df17c93d81"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    let currentUser = "";
+    let myChart = null;
+
+    function login() {
+        const user = document.getElementById("username").value.trim().toLowerCase();
+        const pass = document.getElementById("password").value;
+
+        if (user !== "" && pass === "2027AAA") {
+            currentUser = user;
+            document.getElementById("login-box").classList.add("hidden");
+            document.getElementById("dashboard").classList.remove("hidden");
+            document.getElementById("user-display").innerText = user.toUpperCase();
+            showChart('maths'); 
+        } else {
+            alert("නම හෝ මුරපදය වැරදියි!");
+        }
+    }
+
+    function saveData() {
+        const sub = document.getElementById("subject-select").value;
+        const paper = document.getElementById("paper-no").value;
+        const marks = document.getElementById("marks").value;
+
+        if (paper && marks) {
+            database.ref('users/' + currentUser + '/' + sub + '/' + paper).set(parseInt(marks))
+            .then(() => {
+                alert("දත්ත සාර්ථකව සුරැකුණා!");
+                showChart(sub);
+            });
+        } else {
+            alert("කරුණාකර සියලු විස්තර පුරවන්න.");
+        }
+    }
+
+    function showChart(subject) {
+        // බටන් වල පාට වෙනස් කිරීම
+        const buttons = document.querySelectorAll('.sub-btn');
+        buttons.forEach(btn => btn.style.background = "#5f6368");
+        document.getElementById('btn-' + subject).style.background = "#1a73e8";
+
+        document.getElementById("chart-title").innerText = subject.toUpperCase() + " ප්‍රගතිය";
+        
+        // Database එකෙන් දත්ත කියවීම
+        database.ref('users/' + currentUser + '/' + subject).once('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            
+            // පේපර් අංක පිළිවෙළට සකස් කිරීම
+            const labels = Object.keys(data).sort((a,b) => parseInt(a) - parseInt(b));
+            const values = labels.map(key => data[key]);
+
+            if (myChart) {
+                myChart.destroy(); 
+            }
+            
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels.map(l => "Paper " + l),
+                    datasets: [{
+                        label: subject.toUpperCase() + ' Marks',
+                        data: values,
+                        borderColor: '#1a73e8', // නිල් ඉර
+                        backgroundColor: '#34a853', // කොළ තිත්
+                        pointBackgroundColor: '#34a853',
+                        pointRadius: 6,
+                        borderWidth: 3,
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { 
+                        y: { beginAtZero: true, max: 100 }
+                    }
+                }
+            });
+        });
+    }
+
+    function logout() { location.reload(); }
+</script>
+
+</body>
+</html>
